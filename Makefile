@@ -1,5 +1,8 @@
 mcc: main.c
 	gcc main.c -o mcc
 
+test: mcc
+	sh test.sh
+
 clean:
-	rm mcc tmp*
+	rm -f mcc tmp*
