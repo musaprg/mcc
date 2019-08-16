@@ -53,9 +53,10 @@ struct Node {
 
 Node *new_node(NodeKind, Node*, Node*);
 Node *new_node_num(int);
-Node *expr();
-Node *mul();
-Node *term();
+Node *expr();   // expr  = mul ("+" mul | "-" mul)*
+Node *mul();    // mul   = unary ("*" unary | "/" unary)* 
+Node *unary();  // unary = ("+" | "-")? term
+Node *term();   // term  = num | "(" expr ")"
 void gen(Node*);
 
 int main(int argc, char **argv) {
@@ -193,13 +194,13 @@ Node *expr() {
 }
 
 Node *mul() {
-    Node *node = term();
+    Node *node = unary();
 
     for (;;) {
         if (consume('*'))
-            node = new_node(ND_MUL, node, term());
+            node = new_node(ND_MUL, node, unary());
         else if (consume('/'))
-            node = new_node(ND_DIV, node, term());
+            node = new_node(ND_DIV, node, unary());
         else
             return node;
     }
@@ -213,6 +214,14 @@ Node *term() {
     }
 
     return new_node_num(expect_number());
+}
+
+Node *unary() {
+    if (consume('+'))
+        return term();
+    if (consume('-'))
+        return new_node(ND_SUB, new_node_num(0), term());
+    return term();
 }
 
 void gen(Node *node) {
