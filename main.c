@@ -2,22 +2,36 @@
 #include <stdlib.h>
 
 int main(int argc, char **argv) {
-    FILE *target;
-
     if (argc != 2) {
         fprintf(stderr, "Usage: mcc [options] file...\n");
         return 1;
     }
 
-    target = fopen("tmp.s", "w");
+    char *p = argv[1];
 
-    fprintf(target, ".intel_syntax noprefix\n");
-    fprintf(target, ".globl _main\n");
-    fprintf(target, "_main:\n");
-    fprintf(target, "  mov rax, %d\n", atoi(argv[1]));
-    fprintf(target, "  ret\n");
+    printf(".intel_syntax noprefix\n");
+    printf(".globl _main\n");
+    printf("_main:\n");
+    printf("  mov rax, %ld\n", strtol(p, &p, 10));
 
-    fclose(target);
+    while (*p) {
+        if (*p == '+') {
+            p++;
+            printf("  add rax, %ld\n", strtol(p, &p, 10));
+            continue;
+        }
+
+        if (*p == '-') {
+            p++;
+            printf("  sub rax, %ld\n", strtol(p, &p, 10));
+            continue;
+        }
+
+        fprintf(stderr, "予期しない文字です: '%c'\n", *p);
+        return 1;
+    }
+
+    printf("  ret\n");
 
     return 0;
 }
