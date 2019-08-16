@@ -25,6 +25,61 @@ Token *token;
 // input source
 char *user_input;
 
+void error_at(char*, char*, ...);
+void error(char*, ...);
+bool consume(char);
+void expect(char);
+int expect_number();
+bool at_eof();
+Token *new_token(TokenKind, Token*, char*);
+Token *tokenize(char*);
+
+typedef enum {
+    ND_ADD, // +
+    ND_SUB, // -
+    ND_MUL, // *
+    ND_DIV, // /
+    ND_NUM, // integer
+} NodeKind;
+
+typedef struct Node Node;
+
+struct Node {
+    NodeKind kind;
+    Node *lhs;
+    Node *rhs;
+    int val;
+};
+
+Node *new_node(NodeKind, Node*, Node*);
+Node *new_node_num(int);
+Node *expr();
+Node *mul();
+Node *term();
+void gen(Node*);
+
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: mcc [options] file...\n");
+        return 1;
+    }
+
+    user_input = argv[1];
+    token = tokenize(argv[1]);
+    Node *node = expr();
+
+    printf(".intel_syntax noprefix\n");
+    printf(".globl _main\n");
+    printf("_main:\n");
+
+    gen(node);
+
+    printf("  pop rax\n");
+    printf("  ret\n");
+
+    return 0;
+}
+
 void error_at(char *loc, char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -91,7 +146,7 @@ Token *tokenize(char *p) {
             continue;
         }
 
-        if (*p == '+' || *p == '-') {
+        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
             cur = new_token(TK_RESERVED, cur, p++);
             continue;
         }
@@ -108,23 +163,6 @@ Token *tokenize(char *p) {
     new_token(TK_EOF, cur, p);
     return head.next;
 }
-
-typedef enum {
-    ND_ADD, // +
-    ND_SUB, // -
-    ND_MUL, // *
-    ND_DIV, // /
-    ND_NUM, // integer
-} NodeKind;
-
-typedef struct Node Node;
-
-struct Node {
-    NodeKind kind;
-    Node *lhs;
-    Node *rhs;
-    int val;
-};
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *node = calloc(1, sizeof(Node));
@@ -148,7 +186,7 @@ Node *expr() {
         if (consume('+'))
             node = new_node(ND_ADD, node, mul());
         else if (consume('-'))
-            node = new_node(ND_SUB, node mul());
+            node = new_node(ND_SUB, node, mul());
         else
             return node;
     }
@@ -177,32 +215,35 @@ Node *term() {
     return new_node_num(expect_number());
 }
 
-int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: mcc [options] file...\n");
-        return 1;
+void gen(Node *node) {
+    if (node->kind == ND_NUM) {
+        printf("  push %d\n", node->val);
+        return;
     }
 
-    user_input = argv[1];
+    gen(node->lhs);
+    gen(node->rhs);
 
-    token = tokenize(argv[1]);
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
 
-    printf(".intel_syntax noprefix\n");
-    printf(".globl _main\n");
-    printf("_main:\n");
-    printf("  mov rax, %d\n", expect_number());
-
-    while (!at_eof()) {
-        if (consume('+')) {
-            printf("  add rax, %d\n", expect_number());
-            continue;
-        }
-
-        expect('-');
-        printf("  sub rax, %d\n", expect_number());
+    switch (node->kind) {
+    case ND_ADD:
+        printf("  add rax, rdi\n");
+        break;
+    case ND_SUB:
+        printf("  sub rax, rdi\n");
+        break;
+    case ND_MUL:
+        printf("  imul rax, rdi\n");
+        break;
+    case ND_DIV:
+        printf("  cqo\n");
+        printf("  idiv rdi\n");
+        break;
+    default:
+        break;
     }
 
-    printf("  ret\n");
-
-    return 0;
+    printf("  push rax\n");
 }
